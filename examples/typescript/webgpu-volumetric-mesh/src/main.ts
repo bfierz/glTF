@@ -1,3 +1,13 @@
+import {
+  Accessor,
+  Extension,
+  ExtensionProperty,
+  Graph,
+  PropertyType,
+  ReaderContext,
+  WebIO,
+} from '@gltf-transform/core';
+
 /**
  * WebGPU volumetric mesh example.
  *
@@ -41,46 +51,182 @@ const TEXTURE_USAGE = {
   RENDER_ATTACHMENT: 0x10,
 } as const;
 
-const MESH_ASSET_URL = new URL('./webgpu-volumetric-mesh.gltf', import.meta.url);
+const MESH_ASSET_URL = '/webgpu-volumetric-mesh.gltf';
 
-type TypedArray =
-  | Float32Array
-  | Float64Array
-  | Uint32Array
-  | Uint16Array
-  | Uint8Array
-  | Int32Array
-  | Int16Array
-  | Int8Array;
+type AdditionalMeshTopology =
+  | 'POINTS'
+  | 'LINES'
+  | 'LINE_STRIP'
+  | 'TRIANGLES'
+  | 'TRIANGLE_STRIP'
+  | 'TRIANGLE_FAN'
+  | 'QUADS'
+  | 'QUAD_STRIP'
+  | 'POLYGONS'
+  | 'TETRAHEDRA'
+  | 'PYRAMIDS'
+  | 'WEDGES'
+  | 'PENTA_PRISMS'
+  | 'HEXAHEDRA';
 
-interface GLTF {
-  buffers?: Array<{ uri?: string; byteLength: number }>;
-  bufferViews?: Array<{ buffer: number; byteOffset?: number; byteLength: number; byteStride?: number }>;
-  accessors?: Array<{
-    bufferView?: number;
-    byteOffset?: number;
-    componentType: number;
-    count: number;
-    type: string;
-    sparse?: unknown;
-  }>;
-  nodes?: Array<{
-    extensions?: {
-      B4Z_node_additional_meshes?: {
-        meshes: Array<{
-          id: string;
-          topology: string;
-          vertices: number;
-          indices: number;
-        }>;
-      };
-    };
-  }>;
+const EXTENSION_NAME = 'B4Z_node_additional_meshes';
+const ROOT_ELEMENT_ID = 'app';
+
+interface AdditionalMeshDefinition {
+  id: string;
+  topology: AdditionalMeshTopology;
+  vertices: Accessor | null;
+  indices: Accessor | null;
+  attributes: Map<string, Accessor>;
 }
 
-interface LoadedGLTF {
-  json: GLTF;
-  buffers: ArrayBuffer[];
+class AdditionalMesh extends ExtensionProperty<AdditionalMeshDefinition> {
+  public static EXTENSION_NAME = EXTENSION_NAME;
+  public declare extensionName: typeof EXTENSION_NAME;
+  public declare propertyType: 'AdditionalMesh';
+  public declare parentTypes: [PropertyType.NODE];
+
+  private _id = '';
+  private _topology: AdditionalMeshTopology = 'POINTS';
+  private _vertices: Accessor | null = null;
+  private _indices: Accessor | null = null;
+  private _attributes: Map<string, Accessor> = new Map();
+
+  constructor(graph: Graph) {
+    super(graph);
+    this.extensionName = EXTENSION_NAME;
+    this.propertyType = 'AdditionalMesh';
+    this.parentTypes = [PropertyType.NODE];
+  }
+
+  public setId(id: string): this {
+    this._id = id;
+    return this;
+  }
+
+  public getId(): string {
+    return this._id;
+  }
+
+  public setTopology(topology: AdditionalMeshTopology): this {
+    this._topology = topology;
+    return this;
+  }
+
+  public getTopology(): AdditionalMeshTopology {
+    return this._topology;
+  }
+
+  public setVertices(accessor: Accessor | null): this {
+    this._vertices = accessor;
+    if (accessor) {
+      this.attachElement('vertices', accessor);
+    }
+    return this;
+  }
+
+  public getVertices(): Accessor | null {
+    return this._vertices;
+  }
+
+  public setIndices(accessor: Accessor | null): this {
+    this._indices = accessor;
+    if (accessor) {
+      this.attachElement('indices', accessor);
+    }
+    return this;
+  }
+
+  public getIndices(): Accessor | null {
+    return this._indices;
+  }
+
+  public setAttribute(semantic: string, accessor: Accessor): this {
+    this._attributes.set(semantic, accessor);
+    this.attachElement(`attributes/${semantic}`, accessor);
+    return this;
+  }
+
+  public listAttributes(): Array<[string, Accessor]> {
+    return Array.from(this._attributes.entries());
+  }
+}
+
+class AdditionalMeshSet extends ExtensionProperty<null> {
+  public static EXTENSION_NAME = EXTENSION_NAME;
+  public declare extensionName: typeof EXTENSION_NAME;
+  public declare propertyType: 'AdditionalMeshSet';
+  public declare parentTypes: [PropertyType.NODE];
+
+  private meshes: AdditionalMesh[] = [];
+
+  constructor(graph: Graph) {
+    super(graph);
+    this.extensionName = EXTENSION_NAME;
+    this.propertyType = 'AdditionalMeshSet';
+    this.parentTypes = [PropertyType.NODE];
+  }
+
+  public addMesh(mesh: AdditionalMesh): this {
+    this.meshes.push(mesh);
+    mesh.setParent(this, 'meshes', this.meshes.length - 1);
+    return this;
+  }
+
+  public listMeshes(): AdditionalMesh[] {
+    return this.meshes;
+  }
+}
+
+class B4ZNodeAdditionalMeshesExtension extends Extension {
+  public readonly extensionName = EXTENSION_NAME;
+
+  public static readonly EXTENSION_NAME = EXTENSION_NAME;
+
+  public createAdditionalMesh(): AdditionalMesh {
+    return new AdditionalMesh(this.document.getGraph());
+  }
+
+  public createAdditionalMeshSet(): AdditionalMeshSet {
+    return new AdditionalMeshSet(this.document.getGraph());
+  }
+
+  public read(context: ReaderContext): this {
+    const root = this.document.getRoot();
+    const nodeDefs = context.jsonDoc.json.nodes ?? [];
+    const nodes = root.listNodes();
+
+    for (let nodeIndex = 0; nodeIndex < nodeDefs.length; nodeIndex++) {
+      const nodeDef = nodeDefs[nodeIndex];
+      const extension = nodeDef.extensions?.[EXTENSION_NAME];
+      if (!extension) continue;
+
+      const node = nodes[nodeIndex];
+      if (!node) continue;
+
+      const meshSet = this.createAdditionalMeshSet();
+
+      for (const meshJSON of extension.meshes ?? []) {
+        const mesh = this.createAdditionalMesh()
+          .setId(meshJSON.id)
+          .setTopology(meshJSON.topology as AdditionalMeshTopology);
+
+        mesh.setVertices(meshJSON.vertices !== undefined ? context.readAccessor(meshJSON.vertices) : null);
+        mesh.setIndices(meshJSON.indices !== undefined ? context.readAccessor(meshJSON.indices) : null);
+
+        const attributes = meshJSON.attributes ?? {};
+        for (const [semantic, accessorIndex] of Object.entries(attributes)) {
+          mesh.setAttribute(semantic, context.readAccessor(accessorIndex));
+        }
+
+        meshSet.addMesh(mesh);
+      }
+
+      node.setExtension(EXTENSION_NAME, meshSet);
+    }
+
+    return this;
+  }
 }
 
 const TOPOLOGY_FACE_MAP: Record<string, { verticesPerCell: number; faces: number[][] }> = {
@@ -126,55 +272,49 @@ const TOPOLOGY_FACE_MAP: Record<string, { verticesPerCell: number; faces: number
   },
 };
 
-const COMPONENT_BYTE_SIZE: Record<number, number> = {
-  5120: 1,
-  5121: 1,
-  5122: 2,
-  5123: 2,
-  5125: 4,
-  5126: 4,
-};
-
-const TYPE_COMPONENTS: Record<string, number> = {
-  SCALAR: 1,
-  VEC2: 2,
-  VEC3: 3,
-  VEC4: 4,
-  MAT2: 4,
-  MAT3: 9,
-  MAT4: 16,
-};
 
 async function loadVolumetricCells(): Promise<Polyhedron[]> {
-  const gltf = await loadGLTF(MESH_ASSET_URL.toString());
-  const { json, buffers } = gltf;
-  const nodes = json.nodes ?? [];
+  const io = new WebIO({ credentials: 'same-origin' });
+  io.registerExtensions([B4ZNodeAdditionalMeshesExtension]);
+
+  const document = await io.read(MESH_ASSET_URL);
   const cells: Polyhedron[] = [];
 
-  for (const node of nodes) {
-    const extension = node.extensions?.B4Z_node_additional_meshes;
-    if (!extension) continue;
+  for (const node of document.getRoot().listNodes()) {
+    const meshSet = node.getExtension<AdditionalMeshSet>(EXTENSION_NAME);
+    if (!meshSet) continue;
 
-    for (const mesh of extension.meshes) {
-      const topology = TOPOLOGY_FACE_MAP[mesh.topology];
+    for (const mesh of meshSet.listMeshes()) {
+      const topology = TOPOLOGY_FACE_MAP[mesh.getTopology()];
       if (!topology) {
-        console.warn(`Unsupported topology: ${mesh.topology}`);
+        console.warn(`Unsupported topology: ${mesh.getTopology()}`);
         continue;
       }
 
-      const positionData = getAccessorData(json, buffers, mesh.vertices);
-      const indexData = getAccessorData(json, buffers, mesh.indices);
-
-      if (positionData.itemSize !== 3) {
-        throw new Error(`Expected VEC3 positions for mesh ${mesh.id}.`);
+      const positionAccessor = mesh.getVertices();
+      const indexAccessor = mesh.getIndices();
+      if (!positionAccessor || !indexAccessor) {
+        console.warn(`Mesh ${mesh.getId()} is missing vertices or indices accessors.`);
+        continue;
       }
 
-      const positions = ensureFloat32Array(positionData.array);
-      const indices = ensureUint32Array(indexData.array);
+      const positionArray = positionAccessor.getArray();
+      const indexArray = indexAccessor.getArray();
+      if (!positionArray || !indexArray) {
+        console.warn(`Mesh ${mesh.getId()} has empty accessors.`);
+        continue;
+      }
+
+      if (positionAccessor.getElementSize() !== 3) {
+        throw new Error(`Expected VEC3 positions for mesh ${mesh.getId()}.`);
+      }
+
+      const positions = ensureFloat32Array(positionArray);
+      const indices = ensureUint32Array(indexArray);
       const stride = topology.verticesPerCell;
 
       if (indices.length % stride !== 0) {
-        throw new Error(`Indices for mesh ${mesh.id} are not a multiple of ${stride}.`);
+        throw new Error(`Indices for mesh ${mesh.getId()} are not a multiple of ${stride}.`);
       }
 
       for (let offset = 0; offset < indices.length; offset += stride) {
@@ -183,7 +323,7 @@ async function loadVolumetricCells(): Promise<Polyhedron[]> {
           const vertexIndex = indices[offset + i];
           const base = vertexIndex * 3;
           if (base + 2 >= positions.length) {
-            throw new Error(`Vertex index ${vertexIndex} is out of range for mesh ${mesh.id}.`);
+            throw new Error(`Vertex index ${vertexIndex} is out of range for mesh ${mesh.getId()}.`);
           }
           cellVertices.push([positions[base + 0], positions[base + 1], positions[base + 2]]);
         }
@@ -201,150 +341,30 @@ async function loadVolumetricCells(): Promise<Polyhedron[]> {
   return cells;
 }
 
-async function loadGLTF(url: string): Promise<LoadedGLTF> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load GLTF asset: ${response.status} ${response.statusText}`);
+
+
+
+
+function ensureFloat32Array(array: ArrayLike<number>): Float32Array {
+  if (array instanceof Float32Array) {
+    return array;
   }
 
-  const json = (await response.json()) as GLTF;
-  const buffers: ArrayBuffer[] = [];
-
-  const bufferDefs = json.buffers ?? [];
-  for (let i = 0; i < bufferDefs.length; i++) {
-    const bufferDef = bufferDefs[i];
-    if (!bufferDef.uri) {
-      throw new Error('Buffer references without URIs are not supported in this example.');
-    }
-
-    if (bufferDef.uri.startsWith('data:')) {
-      buffers.push(decodeDataUri(bufferDef.uri));
-    } else {
-      const bufferUrl = new URL(bufferDef.uri, url).toString();
-      const bufferResponse = await fetch(bufferUrl);
-      if (!bufferResponse.ok) {
-        throw new Error(`Failed to load buffer ${i}: ${bufferResponse.statusText}`);
-      }
-      buffers.push(await bufferResponse.arrayBuffer());
-    }
+  const result = new Float32Array(array.length);
+  for (let i = 0; i < array.length; i++) {
+    result[i] = Number(array[i]);
   }
-
-  return { json, buffers };
+  return result;
 }
 
-function decodeDataUri(uri: string): ArrayBuffer {
-  const match = /^data:[^;]+(;base64)?,(.*)$/i.exec(uri);
-  if (!match) {
-    throw new Error('Invalid data URI.');
-  }
-
-  const isBase64 = Boolean(match[1]);
-  const data = match[2];
-
-  if (isBase64) {
-    const decoded = atob(data);
-    const view = new Uint8Array(decoded.length);
-    for (let i = 0; i < decoded.length; i++) {
-      view[i] = decoded.charCodeAt(i);
-    }
-    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
-  }
-
-  const text = decodeURIComponent(data);
-  const view = new Uint8Array(text.length);
-  for (let i = 0; i < text.length; i++) {
-    view[i] = text.charCodeAt(i);
-  }
-  return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
-}
-
-function getAccessorData(gltf: GLTF, buffers: ArrayBuffer[], accessorIndex: number): { array: TypedArray; itemSize: number } {
-  const accessors = gltf.accessors;
-  const bufferViews = gltf.bufferViews;
-
-  if (!accessors || !bufferViews) {
-    throw new Error('GLTF asset is missing accessors or bufferViews.');
-  }
-
-  const accessor = accessors[accessorIndex];
-  if (!accessor) {
-    throw new Error(`Accessor ${accessorIndex} is not defined.`);
-  }
-
-  if (accessor.sparse) {
-    throw new Error('Sparse accessors are not supported in this example.');
-  }
-
-  const bufferViewIndex = accessor.bufferView;
-  if (bufferViewIndex === undefined) {
-    throw new Error(`Accessor ${accessorIndex} does not reference a buffer view.`);
-  }
-
-  const bufferView = bufferViews[bufferViewIndex];
-  if (!bufferView) {
-    throw new Error(`Buffer view ${bufferViewIndex} is not defined.`);
-  }
-
-  const buffer = buffers[bufferView.buffer];
-  if (!buffer) {
-    throw new Error(`Buffer ${bufferView.buffer} is not loaded.`);
-  }
-
-  const componentSize = COMPONENT_BYTE_SIZE[accessor.componentType];
-  const numComponents = TYPE_COMPONENTS[accessor.type];
-  if (!componentSize || !numComponents) {
-    throw new Error(`Unsupported accessor type ${accessor.type} or component type ${accessor.componentType}.`);
-  }
-
-  const expectedStride = componentSize * numComponents;
-  const actualStride = bufferView.byteStride ?? expectedStride;
-  if (actualStride !== expectedStride) {
-    throw new Error('Interleaved buffer views are not supported in this example.');
-  }
-
-  const byteOffset = (bufferView.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
-  const elementCount = accessor.count * numComponents;
-  const array = createTypedArray(accessor.componentType, buffer, byteOffset, elementCount);
-
-  return { array, itemSize: numComponents };
-}
-
-function createTypedArray(
-  componentType: number,
-  buffer: ArrayBuffer,
-  byteOffset: number,
-  elementCount: number,
-): TypedArray {
-  switch (componentType) {
-    case 5120:
-      return new Int8Array(buffer, byteOffset, elementCount);
-    case 5121:
-      return new Uint8Array(buffer, byteOffset, elementCount);
-    case 5122:
-      return new Int16Array(buffer, byteOffset, elementCount);
-    case 5123:
-      return new Uint16Array(buffer, byteOffset, elementCount);
-    case 5125:
-      return new Uint32Array(buffer, byteOffset, elementCount);
-    case 5126:
-      return new Float32Array(buffer, byteOffset, elementCount);
-    default:
-      throw new Error(`Unsupported component type: ${componentType}`);
-  }
-}
-
-function ensureFloat32Array(array: TypedArray): Float32Array {
-  return array instanceof Float32Array ? array : new Float32Array(array as ArrayLike<number>);
-}
-
-function ensureUint32Array(array: TypedArray): Uint32Array {
+function ensureUint32Array(array: ArrayLike<number>): Uint32Array {
   if (array instanceof Uint32Array) {
     return array;
   }
 
   const result = new Uint32Array(array.length);
   for (let i = 0; i < array.length; i++) {
-    result[i] = Number((array as ArrayLike<number>)[i]);
+    result[i] = Number(array[i]);
   }
   return result;
 }
@@ -462,12 +482,24 @@ async function init(): Promise<void> {
     throw new Error('WebGPU is not supported in this browser.');
   }
 
+  const root = document.getElementById(ROOT_ELEMENT_ID);
+  if (!root) {
+    throw new Error(`Missing #${ROOT_ELEMENT_ID} element in the document.`);
+  }
+  root.replaceChildren();
+  root.style.display = 'flex';
+  root.style.flexDirection = 'column';
+
   const container = document.createElement('div');
   container.style.display = 'flex';
   container.style.flexDirection = 'column';
-  container.style.alignItems = 'flex-start';
+  container.style.alignItems = 'stretch';
   container.style.gap = '12px';
   container.style.padding = '12px';
+  container.style.boxSizing = 'border-box';
+  container.style.flex = '1 1 auto';
+
+  root.appendChild(container);
 
   const controlRow = document.createElement('div');
   controlRow.style.display = 'flex';
@@ -476,8 +508,11 @@ async function init(): Promise<void> {
   container.appendChild(controlRow);
 
   const canvas = createCanvas();
+  canvas.style.width = '100%';
+  canvas.style.height = 'auto';
+  canvas.style.flex = '1 1 auto';
+  canvas.style.maxWidth = '100%';
   container.appendChild(canvas);
-  document.body.appendChild(container);
 
   const gpu = (navigator as Navigator & { gpu: any }).gpu;
   const adapter = await gpu.requestAdapter();
@@ -834,5 +869,8 @@ init().catch((error) => {
   console.error(error);
   const message = document.createElement('pre');
   message.textContent = String(error);
-  document.body.appendChild(message);
+  message.style.padding = '12px';
+  message.style.color = '#ff6b6b';
+  const root = document.getElementById(ROOT_ELEMENT_ID) ?? document.body;
+  root.appendChild(message);
 });

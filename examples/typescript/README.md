@@ -28,16 +28,18 @@ Inspect the resulting asset to see the serialized `B4Z_node_additional_meshes` p
 
 ## WebGPU volumetric mesh viewer
 
-The `webgpu-volumetric-mesh.ts` script demonstrates how to consume volumetric cell data in the browser. Each polyhedral face is triangulated into renderable primitives, and the resulting mesh is displayed with WebGPU. UI sliders expose per-axis culling thresholds using each primitive's face center.
+The `webgpu-volumetric-mesh/` folder contains a standalone Vite project that turns the volumetric cells stored in the `B4Z_node_additional_meshes` extension into a renderable WebGPU surface mesh. Each polyhedral face is triangulated into primitives, the resulting mesh is shaded with a simple directional light, and three UI sliders provide per-axis culling based on each primitive's face center.
 
-To try it locally:
+To run the example locally:
 
-1. Compile the TypeScript source into an ES module:
+1. Change into the project directory and install dependencies:
    ```bash
-   npx tsc webgpu-volumetric-mesh.ts --target ES2022 --module ES2022 --lib dom,dom.iterable,es2022 --outDir .
+   cd webgpu-volumetric-mesh
+   npm install
    ```
-   The command emits `webgpu-volumetric-mesh.js` next to the original source.
-2. Serve the directory with any static web server (for example, `npx http-server .`). Ensure `webgpu-volumetric-mesh.gltf` is
-   hosted alongside the compiled script so the viewer can fetch the volumetric dataset.
-3. Open `webgpu-volumetric-mesh.html` in a recent Chromium-based browser with WebGPU enabled to explore the mesh and interactive
-   culling controls.
+2. Start the development server:
+   ```bash
+   npm run dev -- --host
+   ```
+   The command prints a local URL that serves both the compiled module and the sample `webgpu-volumetric-mesh.gltf` asset.
+3. Open the displayed URL in a Chromium-based browser with WebGPU enabled to experiment with the volumetric mesh and culling controls.
