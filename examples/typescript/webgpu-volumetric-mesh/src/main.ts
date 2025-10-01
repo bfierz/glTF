@@ -853,18 +853,18 @@ function lookAt(eye: Vec3, target: Vec3, up: Vec3): Float32Array {
   out[0] = x[0];
   out[1] = y[0];
   out[2] = z[0];
-  out[3] = 0;
+  out[3] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
   out[4] = x[1];
   out[5] = y[1];
   out[6] = z[1];
-  out[7] = 0;
+  out[7] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
   out[8] = x[2];
   out[9] = y[2];
   out[10] = z[2];
-  out[11] = 0;
-  out[12] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
-  out[13] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
-  out[14] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
+  out[11] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
+  out[12] = 0;
+  out[13] = 0;
+  out[14] = 0;
   out[15] = 1;
   return out;
 }
