@@ -94,6 +94,9 @@ class AdditionalMesh extends ExtensionProperty<AdditionalMeshDefinition> {
 
   constructor(graph: Graph) {
     super(graph);
+  }
+
+  protected init(): void {
     this.extensionName = EXTENSION_NAME;
     this.propertyType = 'AdditionalMesh';
     this.parentTypes = [PropertyType.NODE];
@@ -162,6 +165,9 @@ class AdditionalMeshSet extends ExtensionProperty<null> {
 
   constructor(graph: Graph) {
     super(graph);
+  }
+
+  protected init(): void {
     this.extensionName = EXTENSION_NAME;
     this.propertyType = 'AdditionalMeshSet';
     this.parentTypes = [PropertyType.NODE];
