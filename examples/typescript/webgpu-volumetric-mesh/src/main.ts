@@ -168,7 +168,6 @@ class AdditionalMeshSet extends ExtensionProperty<null> {
 
   public addMesh(mesh: AdditionalMesh): this {
     this.meshes.push(mesh);
-    mesh.setParent(this, 'meshes', this.meshes.length - 1);
     return this;
   }
 
