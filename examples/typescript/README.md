@@ -25,3 +25,19 @@ This example shows how to implement support for the `B4Z_node_additional_meshes`
    ```
 
 Inspect the resulting asset to see the serialized `B4Z_node_additional_meshes` payload on the root node.
+
+## WebGPU volumetric mesh viewer
+
+The `webgpu-volumetric-mesh.ts` script demonstrates how to consume volumetric cell data in the browser. Each polyhedral face is triangulated into renderable primitives, and the resulting mesh is displayed with WebGPU. UI sliders expose per-axis culling thresholds using each primitive's face center.
+
+To try it locally:
+
+1. Compile the TypeScript source into an ES module:
+   ```bash
+   npx tsc webgpu-volumetric-mesh.ts --target ES2022 --module ES2022 --lib dom,dom.iterable,es2022 --outDir .
+   ```
+   The command emits `webgpu-volumetric-mesh.js` next to the original source.
+2. Serve the directory with any static web server (for example, `npx http-server .`). Ensure `webgpu-volumetric-mesh.gltf` is
+   hosted alongside the compiled script so the viewer can fetch the volumetric dataset.
+3. Open `webgpu-volumetric-mesh.html` in a recent Chromium-based browser with WebGPU enabled to explore the mesh and interactive
+   culling controls.
