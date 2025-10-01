@@ -201,6 +201,23 @@ class B4ZNodeAdditionalMeshesExtension extends Extension {
     const root = this.document.getRoot();
     const nodeDefs = context.jsonDoc.json.nodes ?? [];
     const nodes = root.listNodes();
+    const accessors = root.listAccessors();
+
+    const getAccessor = (index: unknown): Accessor | null => {
+      if (typeof index !== 'number') {
+        return null;
+      }
+
+      const accessor = accessors[index];
+      if (!accessor) {
+        console.warn(
+          `Additional mesh references missing accessor index ${index}.`,
+        );
+        return null;
+      }
+
+      return accessor;
+    };
 
     for (let nodeIndex = 0; nodeIndex < nodeDefs.length; nodeIndex++) {
       const nodeDef = nodeDefs[nodeIndex];
@@ -217,12 +234,15 @@ class B4ZNodeAdditionalMeshesExtension extends Extension {
           .setId(meshJSON.id)
           .setTopology(meshJSON.topology as AdditionalMeshTopology);
 
-        mesh.setVertices(meshJSON.vertices !== undefined ? context.readAccessor(meshJSON.vertices) : null);
-        mesh.setIndices(meshJSON.indices !== undefined ? context.readAccessor(meshJSON.indices) : null);
+        mesh.setVertices(getAccessor(meshJSON.vertices));
+        mesh.setIndices(getAccessor(meshJSON.indices));
 
         const attributes = meshJSON.attributes ?? {};
         for (const [semantic, accessorIndex] of Object.entries(attributes)) {
-          mesh.setAttribute(semantic, context.readAccessor(accessorIndex));
+          const accessor = getAccessor(accessorIndex);
+          if (accessor) {
+            mesh.setAttribute(semantic, accessor);
+          }
         }
 
         meshSet.addMesh(mesh);
