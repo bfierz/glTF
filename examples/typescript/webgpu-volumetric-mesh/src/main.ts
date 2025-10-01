@@ -122,9 +122,6 @@ class AdditionalMesh extends ExtensionProperty<AdditionalMeshDefinition> {
 
   public setVertices(accessor: Accessor | null): this {
     this._vertices = accessor;
-    if (accessor) {
-      this.attachElement('vertices', accessor);
-    }
     return this;
   }
 
@@ -134,9 +131,6 @@ class AdditionalMesh extends ExtensionProperty<AdditionalMeshDefinition> {
 
   public setIndices(accessor: Accessor | null): this {
     this._indices = accessor;
-    if (accessor) {
-      this.attachElement('indices', accessor);
-    }
     return this;
   }
 
@@ -146,7 +140,6 @@ class AdditionalMesh extends ExtensionProperty<AdditionalMeshDefinition> {
 
   public setAttribute(semantic: string, accessor: Accessor): this {
     this._attributes.set(semantic, accessor);
-    this.attachElement(`attributes/${semantic}`, accessor);
     return this;
   }
 
