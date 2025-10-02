@@ -588,6 +588,11 @@ async function init(): Promise<void> {
   device.queue.writeBuffer(indexBuffer, 0, indices.buffer);
 
   const centerBounds = getCenterBounds(centers);
+  const meshCenter: Vec3 = [
+    0.5 * (centerBounds.min[0] + centerBounds.max[0]),
+    0.5 * (centerBounds.min[1] + centerBounds.max[1]),
+    0.5 * (centerBounds.min[2] + centerBounds.max[2]),
+  ] as Vec3;
   const boundsUniform = new Float32Array([
     centerBounds.min[0],
     centerBounds.min[1],
@@ -714,7 +719,7 @@ fn fs(input : VSOutput) -> @location(0) vec4<f32> {
 
   const aspect = canvas.width / canvas.height;
   const projection = perspective(Math.PI / 4, aspect, 0.1, 10);
-  const view = lookAt([1.5, 1.5, 2.5], [0.4, 0.1, 0], [0, 1, 0]);
+  const view = lookAt([1.5, 1.5, 2.5], meshCenter, [0, 1, 0]);
   const viewProj = multiplyMat4(projection, view);
 
   const uniformData = new Float32Array(16 + 8);
