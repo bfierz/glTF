@@ -743,8 +743,26 @@ fn fs(input : VSOutput) -> @location(0) vec4<f32> {
   const depthView = depthTexture.createView();
 
   const aspect = canvas.width / canvas.height;
-  const projection = perspective(Math.PI / 4, aspect, 0.1, 10);
-  const view = lookAt([1.5, 1.5, 2.5], meshCenter, [0, 1, 0]);
+  const extentX = centerBounds.max[0] - centerBounds.min[0];
+  const extentY = centerBounds.max[1] - centerBounds.min[1];
+  const extentZ = centerBounds.max[2] - centerBounds.min[2];
+  const boundingRadius = Math.max(Math.hypot(extentX, extentY, extentZ) * 0.5, 0.5);
+  const fovY = Math.PI / 4;
+  const tanHalfFov = Math.tan(fovY / 2);
+  const tanHalfHorizontal = tanHalfFov * aspect;
+  const minDistance = Math.max(
+    boundingRadius / Math.max(tanHalfFov, 1e-6),
+    boundingRadius / Math.max(tanHalfHorizontal, 1e-6),
+  );
+  const eyeDistance = minDistance + boundingRadius * 0.5;
+  const cameraDirection = normalizeVec3([1, 1, 1]);
+  const eye: Vec3 = [
+    meshCenter[0] + cameraDirection[0] * eyeDistance,
+    meshCenter[1] + cameraDirection[1] * eyeDistance,
+    meshCenter[2] + cameraDirection[2] * eyeDistance,
+  ];
+  const projection = perspective(fovY, aspect, 0.1, Math.max(eyeDistance + boundingRadius * 4, 10));
+  const view = lookAt(eye, meshCenter, [0, 1, 0]);
   const viewProj = multiplyMat4(projection, view);
 
   const uniformData = new Float32Array(16 + 8);
@@ -847,6 +865,14 @@ function getCenterBounds(centers: Float32Array) {
   }
 
   return { min, max };
+}
+
+function normalizeVec3(value: Vec3): Vec3 {
+  const length = Math.hypot(value[0], value[1], value[2]);
+  if (length === 0) {
+    return [0, 0, 0];
+  }
+  return [value[0] / length, value[1] / length, value[2] / length];
 }
 
 function perspective(fovY: number, aspect: number, near: number, far: number): Float32Array {
