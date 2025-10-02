@@ -396,16 +396,41 @@ function triangulateMesh(cells: Polyhedron[]): TriangulatedPrimitive {
   let vertexIndex = 0;
 
   for (const cell of cells) {
+    const cellCenter = computeCenter(cell.vertices);
+
     for (const face of cell.faces) {
       if (face.length < 3) continue;
 
-      const faceVertices = face.map((idx) => cell.vertices[idx]);
+      const faceIndices = face.slice();
+      const faceVertices = faceIndices.map((idx) => cell.vertices[idx]);
       const faceCenter = computeCenter(faceVertices);
+      const toFace: Vec3 = [
+        faceCenter[0] - cellCenter[0],
+        faceCenter[1] - cellCenter[1],
+        faceCenter[2] - cellCenter[2],
+      ];
 
-      for (let i = 1; i < face.length - 1; i++) {
-        const a = cell.vertices[face[0]];
-        const b = cell.vertices[face[i]];
-        const c = cell.vertices[face[i + 1]];
+      if (faceIndices.length >= 3) {
+        const referenceNormal = computeFaceNormal(
+          cell.vertices[faceIndices[0]],
+          cell.vertices[faceIndices[1]],
+          cell.vertices[faceIndices[2]],
+        );
+
+        const alignment =
+          referenceNormal[0] * toFace[0] +
+          referenceNormal[1] * toFace[1] +
+          referenceNormal[2] * toFace[2];
+
+        if (alignment < 0) {
+          faceIndices.reverse();
+        }
+      }
+
+      for (let i = 1; i < faceIndices.length - 1; i++) {
+        const a = cell.vertices[faceIndices[0]];
+        const b = cell.vertices[faceIndices[i]];
+        const c = cell.vertices[faceIndices[i + 1]];
 
         const normal = computeFaceNormal(a, b, c);
 
@@ -856,15 +881,15 @@ function lookAt(eye: Vec3, target: Vec3, up: Vec3): Float32Array {
 
   const out = new Float32Array(16);
   out[0] = x[0];
-  out[1] = y[0];
-  out[2] = z[0];
+  out[1] = x[1];
+  out[2] = x[2];
   out[3] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
-  out[4] = x[1];
+  out[4] = y[0];
   out[5] = y[1];
-  out[6] = z[1];
+  out[6] = y[2];
   out[7] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
-  out[8] = x[2];
-  out[9] = y[2];
+  out[8] = z[0];
+  out[9] = z[1];
   out[10] = z[2];
   out[11] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
   out[12] = 0;
