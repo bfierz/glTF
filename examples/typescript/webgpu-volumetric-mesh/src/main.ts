@@ -763,7 +763,7 @@ fn fs(input : VSOutput) -> @location(0) vec4<f32> {
   ];
   const projection = perspective(fovY, aspect, 0.1, Math.max(eyeDistance + boundingRadius * 4, 10));
   const view = lookAt(eye, meshCenter, [0, 1, 0]);
-  const viewProj = multiplyMat4(projection, view);
+  const viewProj = transposeMat4(multiplyMat4(projection, view));
 
   const uniformData = new Float32Array(16 + 8);
   uniformData.set(viewProj, 0);
@@ -877,13 +877,13 @@ function normalizeVec3(value: Vec3): Vec3 {
 
 function perspective(fovY: number, aspect: number, near: number, far: number): Float32Array {
   const f = 1.0 / Math.tan(fovY / 2);
-  const nf = 1 / (near - far);
+  const range = near - far;
   const out = new Float32Array(16);
   out[0] = f / aspect;
   out[5] = f;
-  out[10] = (far + near) * nf;
-  out[11] = -1;
-  out[14] = (2 * far * near) * nf;
+  out[10] = far / range;
+  out[11] = (far * near) / range;
+  out[14] = -1;
   return out;
 }
 
@@ -934,6 +934,16 @@ function multiplyMat4(a: Float32Array, b: Float32Array): Float32Array {
         a[row * 4 + 1] * b[col + 4] +
         a[row * 4 + 2] * b[col + 8] +
         a[row * 4 + 3] * b[col + 12];
+    }
+  }
+  return out;
+}
+
+function transposeMat4(value: Float32Array): Float32Array {
+  const out = new Float32Array(16);
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      out[row + col * 4] = value[col + row * 4];
     }
   }
   return out;
