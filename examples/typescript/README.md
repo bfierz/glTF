@@ -25,3 +25,21 @@ This example shows how to implement support for the `B4Z_node_additional_meshes`
    ```
 
 Inspect the resulting asset to see the serialized `B4Z_node_additional_meshes` payload on the root node.
+
+## WebGPU volumetric mesh viewer
+
+The `webgpu-volumetric-mesh/` folder contains a standalone Vite project that turns the volumetric cells stored in the `B4Z_node_additional_meshes` extension into a renderable WebGPU surface mesh. Each polyhedral face is triangulated into primitives, the resulting mesh is shaded with a simple directional light, and three UI sliders provide per-axis culling based on each primitive's face center.
+
+To run the example locally:
+
+1. Change into the project directory and install dependencies:
+   ```bash
+   cd webgpu-volumetric-mesh
+   npm install
+   ```
+2. Start the development server:
+   ```bash
+   npm run dev -- --host
+   ```
+   The command prints a local URL that serves both the compiled module and the sample `webgpu-volumetric-mesh.gltf` asset.
+3. Open the displayed URL in a Chromium-based browser with WebGPU enabled to experiment with the volumetric mesh and culling controls.
